@@ -1,1 +1,125 @@
-# Test
+---
+title: 'Week3: Plotly Presentation'
+author: "Boris Blazej"
+date: '2022-03-28'
+output:
+  slidy_presentation: default
+  ioslides_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+library(readr)
+library(tidyverse)
+library(plotly)
+```
+
+## Covid-19 vaccination figures from Austria
+
+The following charts show some Covid-19 vaccination figures from my home country: Austria.
+
+The Data is derived from [Open Data Austria](https://www.data.gv.ah), a governmental open data platform. 
+It represents the status as of 2022-03-27 21:59:59.
+
+The source code for this analysis can be downloaded from [Github](https://github.com/borisblazej/w3_proj_plotly).
+
+
+
+## The Data
+
+```{r data, warning=FALSE}
+
+data_url <- "https://info.gesundheitsministerium.gv.at/data/COVID19_vaccination_doses_agegroups.csv"
+
+download.file(data_url, "./data/at_vaccination.csv")
+
+at_vaccination <- read_delim(
+    "data/at_vaccination.csv",
+    delim = ";",
+    escape_double = FALSE,
+    col_types = cols(
+        date = col_skip(),
+        state_id = col_skip()
+    ),
+    trim_ws = TRUE
+)
+
+head(at_vaccination)
+
+
+```
+
+## Most-applied Vaccine
+
+BioNTechPfizer is by far the most-applied vaccine so far in Austria.
+
+```{r vaccine, echo = FALSE}
+
+tot_vacc <- at_vaccination %>%
+    group_by(vaccine) %>% 
+    summarise(doses = sum(doses_administered_cumulative), 
+              .groups = "drop") %>% 
+    arrange(desc(doses))
+    
+g <- ggplot(tot_vacc, aes(x = vaccine, y = doses, fill = vaccine)) +
+    geom_col()
+
+ggplotly(g)
+
+```
+
+## Difference in Age Groups
+
+Interestingly, the vaccines do not distribute identically across age groups. Whereas AstraZeneca and BioNTechPfizer peak at 55-64 (= the overall distribution peak), Janssen peaks at 25-34 and Moderna peaks at 45-54 years.
+
+```{r age_groups}
+at_vaccination_enr <- at_vaccination %>%
+    left_join(tot_vacc, by = "vaccine") %>%
+    mutate(share = doses_administered_cumulative / doses)
+
+age_vac_share <- at_vaccination_enr %>%
+    group_by(vaccine, age_group) %>%
+    summarise(vacc_share = sum(share), .groups = "drop")
+
+g2 <- ggplot(age_vac_share, aes(
+    x = 1,
+    y = 1,
+    color = vaccine,
+    size = vacc_share
+)) +
+    geom_point() +
+    geom_text(aes(label = round(vacc_share, 2)), 
+            colour = "black", 
+            size = 2) +
+    facet_grid(age_group ~ vaccine) +
+    scale_x_discrete(position = "top") +
+    scale_y_discrete(position = "left") +
+    labs(x = NULL, y = NULL) +
+    theme(
+        legend.position = "none",
+        panel.background = element_blank(),
+        panel.grid = element_blank(),
+        axis.ticks = element_blank()
+    )
+
+ggplotly(g2)
+
+```
+
+## Controll: Overall Age Structure
+
+```{r age_control, echo = FALSE}
+
+age_vacc <- at_vaccination %>%
+    group_by(age_group) %>% 
+    summarise(doses = sum(doses_administered_cumulative), 
+              .groups = "drop") %>% 
+    arrange(desc(doses))
+    
+g2 <- ggplot(age_vacc, aes(x = age_group, y = doses)) +
+    geom_col()
+
+ggplotly(g2)
+
+```
